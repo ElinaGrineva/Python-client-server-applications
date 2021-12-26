@@ -1,0 +1,18 @@
+{
+    "orders": [
+        [
+            "TV",
+            5,
+            32000,
+            "all how loves watching TV",
+            "26.12.2021"
+        ],
+        {
+            "item": "TV",
+            "quantity": 5,
+            "price": 32000.0,
+            "buyer": "Все",
+            "date": "26-12-2021"
+        }
+    ]
+}
