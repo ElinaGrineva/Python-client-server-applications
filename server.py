@@ -1,53 +1,56 @@
-from sys import argv
-from socket import *
+from .variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, \
+    PRESENCE, TIME, USER, ERROR, DEFAULT_PORT, RESPOND_FAULT_IP_ADDRESS
+from .utils import get_message, send_message
+
+import socket
+import sys
 import json
-from datetime import datetime
-
-script, ip, port = argv
-#Изменяем формат времени в "часы:минуты"
-current_datetime = datetime.now()
-timer = str(current_datetime.hour) + ":" + str(current_datetime.minute) + ":"  + str(current_datetime.second)
+import argparse
 
 
-s = socket(AF_INET, SOCK_STREAM)
-s.bind((ip, int(port)))
-s.listen(5)
+def process_client_msg(client_message):
+    if ACTION in client_message and client_message[ACTION] == PRESENCE and TIME in client_message \
+            and USER in client_message and client_message[USER][ACCOUNT_NAME] == 'Sergey':
+        return {RESPONSE: 200}
+    return {
+        RESPOND_FAULT_IP_ADDRESS: 400,
+        ERROR: 'Bad Request'
+    }
 
 
-while True:
-    client, addr = s.accept()
-    data = client.recv(100000)
-    json_data = json.loads(data)
-    # транслируем инфу от клиента в удобном виде
-    for k, v in dict(json_data).items():
-        print(k, ':', v)
-    json_data = dict(json_data)
-    # Ищем ответы от сервера в Json файле
-    with open('probe.json') as json_opener:
-        json_reader = json_opener.read()
-        json_loads = json.loads(json_reader)
-        json_list = list(json_loads)
-        # Проверка запроса
-        if json_data['action'] == 'presence':
-            for i in json_list:
-                if dict(i) == {"action": "probe", "time": ""}:
-                    dict_request = dict(i)
-                    # Обновление времени
-                    dict_request.update({"time": timer})
-                    request = json.dumps(dict_request)
-                    client.send(request.encode('utf-8'))
-        # Вариант для msg
-        elif json_data['action'] == 'msg':
-            for i in json_list:
-                if dict(i) == {"base": "100"}:
-                    dict_request = dict(i)
-                    request = json.dumps(dict_request)
-                    client.send(request.encode('utf-8'))
-        # Если клиент пришлет запрос отличный от msg/presence
-        else:
-            for i in json_list:
-                if dict(i) == {"wrong request": "400"}:
-                    dict_request = dict(i)
-                    request = json.dumps(dict_request)
-                    client.send(request.encode('utf-8'))
-    client.close()
+def server_main():
+    print('Сервер погнал')
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('-p', type=int, default=DEFAULT_PORT)
+    arg_parser.add_argument('-a', type=str, default='')
+    args = arg_parser.parse_args()
+
+    try:
+        listen_port = args.p
+        if not(1024 < listen_port < 65535):
+            raise ValueError
+    except ValueError:
+        print(
+            'В качастве порта может быть указано только число в диапазоне от 1024 до 65535.')
+        sys.exit(1)
+
+    address_listen = args.a
+    transport = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    transport.bind((address_listen, listen_port))
+    transport.listen(MAX_CONNECTIONS)
+
+    while True:
+        client, client_address = transport.accept()
+        try:
+            message_from_client = get_message(client)
+            print(message_from_client)
+            response = process_client_msg(message_from_client)
+            send_message(client, response)
+            client.close()
+        except (ValueError, json.JSONDecodeError):
+            print('Принято некорретное сообщение от клиента.')
+            client.close()
+
+
+if __name__ == '__main__':
+    server_main()
